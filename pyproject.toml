@@ -1,0 +1,15 @@
+[project]
+name = "archiver"
+version = "0.1.0"
+description = "Encode and decode ZIP archives as Base64 text"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+archive-encode = "archiver.encoder:main"
+archive-decode = "archiver.decoder:main"
+
+[build-system]
+requires = ["uv_build>=0.12.11,<0.13.0"]
+build-backend = "uv_build"
