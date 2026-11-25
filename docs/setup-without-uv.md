@@ -13,15 +13,15 @@ python3 --version
 На macOS / Linux:
 
 ```bash
-python3 src/archiver/encoder.py demo --output encoded.txt
-python3 src/archiver/decoder.py encoded.txt --output restored.zip --extract restored
+python3 src/archiver/encoder.py demo 
+python3 src/archiver/decoder.py decoded/encoded.txt --extract decoded/restored
 ```
 
 На Windows:
 
 ```powershell
-py -3 src\archiver\encoder.py demo --output encoded.txt
-py -3 src\archiver\decoder.py encoded.txt --output restored.zip --extract restored
+py -3 src\archiver\encoder.py demo 
+py -3 src\archiver\decoder.py decoded/encoded.txt --extract decoded/restored
 ```
 
 Таким образом **совсем не требуется установка Python-пакета**, в том числе `uv_build`. Оба файла имеют самостоятельную функцию `main()`. Для экспериментальной локальной машины это самый простой путь.
@@ -35,8 +35,8 @@ macOS / Linux:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python src/archiver/encoder.py demo --output encoded.txt
-python src/archiver/decoder.py encoded.txt --output restored.zip --extract restored
+python src/archiver/encoder.py demo 
+python src/archiver/decoder.py decoded/encoded.txt --extract decoded/restored
 deactivate
 ```
 
@@ -45,8 +45,8 @@ Windows PowerShell:
 ```powershell
 py -3 -m venv .venv
 .venv\Scripts\Activate.ps1
-python src\archiver\encoder.py demo --output encoded.txt
-python src\archiver\decoder.py encoded.txt --output restored.zip --extract restored
+python src\archiver\encoder.py demo 
+python src\archiver\decoder.py decoded/encoded.txt --extract decoded/restored
 deactivate
 ```
 
@@ -59,16 +59,16 @@ deactivate
 macOS / Linux:
 
 ```bash
-PYTHONPATH=src python3 -m archiver.encoder demo --output encoded.txt
-PYTHONPATH=src python3 -m archiver.decoder encoded.txt --output restored.zip --extract restored
+PYTHONPATH=src python3 -m archiver.encoder demo 
+PYTHONPATH=src python3 -m archiver.decoder decoded/encoded.txt --extract decoded/restored
 ```
 
 Windows PowerShell:
 
 ```powershell
 $env:PYTHONPATH = "src"
-py -3 -m archiver.encoder demo --output encoded.txt
-py -3 -m archiver.decoder encoded.txt --output restored.zip --extract restored
+py -3 -m archiver.encoder demo 
+py -3 -m archiver.decoder decoded/encoded.txt --extract decoded/restored
 Remove-Item Env:PYTHONPATH
 ```
 
@@ -76,12 +76,14 @@ Remove-Item Env:PYTHONPATH
 
 Они объявлены в `[project.scripts]` файла `pyproject.toml`, но становятся доступными только **после установки проекта**. Для установки через `pip install -e .` требуется сборочный backend `uv_build`, указанный в `pyproject.toml`; при обычной настройке pip загрузит его как build dependency. Это не требует установки CLI `uv`, но может потребовать доступ в интернет/заранее подготовленный wheel. Поэтому для полностью автономного запуска лучше варианты A–C.
 
+Все артефакты по умолчанию сохраняются в `decoded/`; этот каталог целиком внесён в `.gitignore`.
+
 ## Проверка результатов
 
-- `encoded.txt` — одна непрерывная Base64-строка из ZIP (без собственных сегментов).
-- `restored.zip` — восстановленный архив.
-- `restored/` — распакованный пример `demo/`.
+- `decoded/encoded.txt` — одна непрерывная Base64-строка из ZIP (без собственных сегментов).
+- `decoded/restored.zip` — восстановленный архив.
+- `decoded/restored/` — распакованный пример `demo/`.
 - Кодер выводит SHA-256 ZIP. Чтобы проверить результат из браузера, передай этот хеш декодеру через `--sha256 <значение>`.
 - В эксперименте проверяй однократную передачу Base64. Если один архив был вставлен несколько раз подряд, получившийся TXT не является корректным входом для текущего декодера.
 
-Скрипт браузерного сбора расположен в `src/archiver/collector.js`; запускается отдельно в DevTools и не зависит от Python.
+Скрипт браузерного сбора расположен в `src/archiver/collect_archive.js`; запускается отдельно в DevTools и не зависит от Python.

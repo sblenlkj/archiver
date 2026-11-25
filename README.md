@@ -5,21 +5,21 @@
 ## Как устроено
 
 ```text
-demo/ → encoder.py → ZIP → encoded.txt (Base64)
+demo/ → encoder.py → ZIP → decoded/encoded.txt (Base64)
                   → copy/paste → сообщения в чате
-                  → collector.js (DevTools) → collected_base64.txt
-                  → decoder.py → restored.zip → restored/
+                  → collect_archive.js (DevTools) → decoded/collected_base64.txt
+                  → decoder.py → decoded/restored.zip → decoded/restored/
 ```
 
-**Мы не делим Base64 на части в Python.** Границы сообщений определяет сам интерфейс чата. JS соединяет содержимое сообщений из последней группы `.ConvoStack__content` в порядке DOM. Нет отдельного транспортного протокола или нумерации частей.
+**По умолчанию** Base64 записывается одним TXT. Дополнительный локальный режим `--splits` создаёт нумерованные части для удобства обработки больших данных; это не транспортный протокол. Два JS-скрипта читают последнюю группу `.ConvoStack__content` и собирают сообщения **после последнего отдельного сообщения `###`** в порядке DOM. Нет отдельного транспортного протокола или нумерации частей.
 
 ## Быстрый запуск без uv
 
 Из корня репозитория, Python 3.12+:
 
 ```bash
-python3 src/archiver/encoder.py demo --output encoded.txt
-python3 src/archiver/decoder.py encoded.txt --output restored.zip --extract restored
+python3 src/archiver/encoder.py demo 
+python3 src/archiver/decoder.py decoded/encoded.txt --extract decoded/restored
 ```
 
 Работает без `uv`, `pip install` и сторонних библиотек. Инструкция с `venv`, `python -m`, macOS/Linux/Windows и пояснением `pyproject.toml` — **[docs/setup-without-uv.md](docs/setup-without-uv.md)**.
@@ -27,18 +27,38 @@ python3 src/archiver/decoder.py encoded.txt --output restored.zip --extract rest
 На машине с uv, после `uv sync`, доступны entry points из `pyproject.toml`:
 
 ```bash
-uv run archive-encode demo --output encoded.txt
-uv run archive-decode encoded.txt --output restored.zip --extract restored
+uv run archive-encode demo 
+uv run archive-decode decoded/encoded.txt --extract decoded/restored
 ```
+
+## Разбиение Base64 на локальные TXT-файлы
+
+```bash
+python3 src/archiver/encoder.py demo --splits
+python3 src/archiver/encoder.py demo --splits decoded/parts --block-limit 500000
+python3 src/archiver/decoder.py --splits --extract decoded/restored
+python3 src/archiver/decoder.py --splits decoded/parts --extract decoded/restored
+```
+
+При разбиении создаются `decoded/splits/1.txt`, `2.txt` и т. д. и `decoded/splits/manifest.json` (число частей, длина и SHA-256). Декодер проверяет комплектность и целостность перед распаковкой. Энкодер очищает старые нумерованные части и манифест; если в каталоге есть посторонние файлы, он отказывается их удалять. `--output` и `--splits` у энкодера взаимоисключающие; `--block-limit` используется только с `--splits`. Размер блока по умолчанию — 500 000 символов. Такой режим предназначен для локальных тестовых файлов.
+
+По умолчанию все локальные результаты находятся в `decoded/`, которая целиком исключена из Git через `.gitignore`. При явном задании `--output` или `--splits DIR` путь можно переопределить.
 
 ## Структура
 
 ```text
 src/archiver/
-  encoder.py       # папка → ZIP → один Base64 TXT
-  decoder.py       # Base64 TXT → ZIP → папка; SHA-256 по желанию
-  collector.js     # экспериментальный сбор текста последней DOM-группы
+  encoder.py       # папка → ZIP → Base64 TXT или splits/
+  decoder.py       # TXT или splits/ → ZIP → папка; SHA-256
+  collect_archive.js     # сбор Base64 после ### в TXT (скачивание)
+  collect_markdown.js    # сбор Markdown после ### (буфер обмена)
   __init__.py      # маркер Python-пакета
+
+decoded/         # результаты работы, игнорируются Git
+  encoded.txt
+  splits/
+  restored.zip
+  restored/
 
 demo/
   basic/           # маленький Python-пример
@@ -51,21 +71,23 @@ docs/
 
 ## Эксперимент в браузере
 
-1. Скопировать всё содержимое `encoded.txt` в тестовый чат.
-2. Убедиться, что **все** отправленные сообщения загружены в DOM и относятся к одной последней группе.
-3. Вставить содержимое `src/archiver/collector.js` в консоль DevTools на странице тестового чата.
-4. Скрипт сохранит `collected_base64.txt`. Декодировать его тем же `decoder.py`; сравнить ZIP по SHA-256.
+1. Отправить отдельное сообщение `###`, затем скопировать всё содержимое `decoded/encoded.txt` в тестовый чат.
+2. Убедиться, что маркер и **все** сообщения архива загружены в DOM и относятся к последней группе.
+3. Вставить содержимое `src/archiver/collect_archive.js` в консоль DevTools на странице тестового чата.
+4. Браузер сохранит `collected_base64.txt` в Downloads; для организации артефактов перемести его в `decoded/`. Декодировать его тем же `decoder.py`; сравнить ZIP по SHA-256.
 
-**Статус:** минимальная цепочка работает в эксперименте с тестовым архивом, включая объединение разорванного Base64. Но это **прототип**, не надёжный протокол синхронизации. Сборщик зависит от текущего DOM ВК, последней группы сообщений и присутствия всех фрагментов на странице. Полный автоматический контроль пропусков, неправильной группировки или порядка отсутствует.
+**Markdown:** отправить отдельное `###`, затем текст Markdown. Выполнить `src/archiver/collect_markdown.js` — он объединит сообщения после маркера без добавленных разделителей и скопирует результат в буфер обмена (Cmd/Ctrl+V для вставки). Заголовки Markdown `### Заголовок` не считаются маркером.
+
+**Статус:** минимальная цепочка работает в эксперименте с тестовым архивом, включая объединение разорванного Base64. Но это **прототип**, не надёжный протокол синхронизации. Сборщики зависят от текущего DOM ВК, последней группы сообщений и присутствия маркера и всех фрагментов на странице. Если маркер находится в другой группе, скрипты пока не смогут собрать архив. Полный автоматический контроль пропусков, неправильной группировки или порядка отсутствует.
 
 ## Roadmap
 
-План дальнейшей разработки вынесен в **[docs/roadmap.md](docs/roadmap.md)**: рефакторинг JavaScript collector и эксперимент с Git-синхронизацией между коммитами.
+План дальнейшей разработки — **[docs/roadmap.md](docs/roadmap.md)**: надёжность JS-сборщиков, индексация/повторная доставка чанков и Git-синхронизация.
 
 ## Ограничения и безопасность
 
 - Копирование Base64 не гарантирует доставку всех символов. ZIP-проверка и сравнение SHA-256 обязательны для серьёзного теста.
-- `collector.js` не выполняет API-запросы и не подгружает историю самостоятельно.
+- JS-сборщики не выполняют API-запросы и не подгружает историю самостоятельно.
 - Если скопировать один архив несколько раз подряд, полученный конкатенированный Base64 **не является** одним корректным архивом для декодера. Для теста восстановления передавай один раз.
 - Не сохранять в Git реальные сессионные токены, HTML авторизованных страниц или конфиденциальные данные.
 - Не использовать этот эксперимент для обхода ограничений на передачу файлов в организациях.

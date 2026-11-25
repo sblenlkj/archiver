@@ -9,8 +9,12 @@ wheels/
 # Virtual environments
 .venv
 
-# Generated transfer artifacts and sensitive HTML
+# Generated archive artifacts — kept together outside Git
+/decoded/
+
+# Previous paths, kept ignored for backwards compatibility
 encoded.txt
+splits/
 collected_base64.txt
 restored.zip
 restored/
